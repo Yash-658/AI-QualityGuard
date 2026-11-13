@@ -1,7 +1,7 @@
 from uuid import uuid4
 
 
-CHUNK_SIZE = 500
+CHUNK_SIZE = 500                # I think its too high
 CHUNK_OVERLAP = 50              # We do chunk overlapping in Retrieval-Augmented Generation (RAG) and text processing to prevent important information and context from being cut in half at the boundary of a chunk.
 
 
