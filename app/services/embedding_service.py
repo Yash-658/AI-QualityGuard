@@ -16,7 +16,7 @@ class EmbeddingService:
         embeddings = self.model.encode(
             texts,
             convert_to_numpy=True,
-            normalize_embeddings=True,
+            normalize_embeddings=True,              # why do we normalize embeddings?
         )
 
         return embeddings.tolist()
