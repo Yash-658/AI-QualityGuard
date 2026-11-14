@@ -1,42 +1,52 @@
 from pathlib import Path
-from fastapi import APIRouter, File, HTTPException, UploadFile
 
-from app.services.chunking_service import create_chunks
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+
 from app.services.document_service import save_document
-from app.services.extraction_service import extract_document
+from app.services.ingestion_service import DocumentIngestionService, get_ingestion_service
+
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
 
 
 @router.post("/upload")
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(
+    file: UploadFile = File(...),
+    ingestion_service: DocumentIngestionService = Depends(
+        get_ingestion_service
+    ),
+):
+    # Step 1: Save the uploaded document
     document = await save_document(file)
 
     file_path = Path("data/uploads") / document["stored_filename"]
 
     try:
-        extracted_pages = extract_document(file_path)
-    except Exception as exc:                                # A failed extraction also currently leaves the uploaded file on disk; we'll improve cleanup when we build document lifecycle management.
+        # Step 2: Execute the complete ingestion pipeline
+        result = ingestion_service.process_document(
+            file_path=file_path,
+            document=document,
+        )
+
+    except ValueError as exc:
+        file_path.unlink(missing_ok=True)       # This removes the file if it exists, without raising an error if it has already disappeared.
+
         raise HTTPException(
             status_code=422,
-            detail="Could not extract text from the uploaded document.",
+            detail=str(exc),
         ) from exc
 
-    if not extracted_pages:
-        raise HTTPException(
-            status_code=422,
-            detail="The document does not contain extractable text.",
-        )
-        
-    chunks = create_chunks(
-        extracted_pages=extracted_pages,
-        document_id=document["id"],
-        filename=document["filename"],
-    )
+    except Exception as exc:
+        file_path.unlink(missing_ok=True)
 
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while processing the document.",
+        ) from exc
+
+    # Step 3: Return the processing summary
     return {
-        "message": "Document uploaded, extracted, and chunked successfully",
+        "message": "Document successfully processed and stored",
         "document": document,
-        "extracted_pages": len(extracted_pages),
-        "chunk_count": len(chunks),
+        **result,   #  placing ** before a dictionary unpacks its key-value pairs into separate keyword arguments
     }

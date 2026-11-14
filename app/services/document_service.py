@@ -42,6 +42,6 @@ async def save_document(file: UploadFile) -> dict:
         "id": document_id,
         "filename": original_filename,
         "stored_filename": stored_filename,
-        "size": len(content),
+        "size": f"{len(content)/1024} KB",
         "content_type": file.content_type,
     }
